@@ -246,3 +246,13 @@ func (o *ChatGPTAPI) GetVersion() string { return o.version }
 
 // IsDemoMode indicates if the API is in demo mode
 func (o *ChatGPTAPI) IsDemoMode() bool { return o.demoMode }
+
+func (o *ChatGPTAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (o *ChatGPTAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
+}

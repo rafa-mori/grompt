@@ -6,6 +6,8 @@ import (
 	"github.com/rafa-mori/grompt/internal/types"
 )
 
-type Engine = engine.IEngine
+type Engine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] = engine.IEngine[F]
 
-func NewEngine(config types.IConfig) engine.IEngine { return engine.NewEngine(config) }
+func NewEngine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](config types.IConfig) engine.IEngine[F] {
+	return engine.NewEngine[F](config)
+}

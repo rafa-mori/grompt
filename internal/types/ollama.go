@@ -22,7 +22,7 @@ type OllamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
-func NewOllamaAPI(baseURL string) *OllamaAPI {
+func NewOllamaAPI(baseURL string) IAPIConfig {
 	return &OllamaAPI{
 		APIConfig: &APIConfig{
 			baseURL: baseURL,
@@ -110,3 +110,13 @@ func (o *OllamaAPI) ListModels() ([]string, error) {
 func (o *OllamaAPI) GetVersion() string { return o.version }
 
 func (o *OllamaAPI) IsDemoMode() bool { return o.demoMode }
+
+func (o *OllamaAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (o *OllamaAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
+}

@@ -50,7 +50,7 @@ type GeminiErrorResponse struct {
 	} `json:"error"`
 }
 
-func NewGeminiAPI(apiKey string) *GeminiAPI {
+func NewGeminiAPI(apiKey string) IAPIConfig {
 	configAPI := &APIConfig{
 		apiKey:  apiKey,
 		baseURL: "https://generativelanguage.googleapis.com/", //v1beta/models/gemini-2.0-flash:generateContent
@@ -225,4 +225,14 @@ func (g *GeminiAPI) GetVersion() string {
 // IsDemoMode returns false as this is not demo mode
 func (g *GeminiAPI) IsDemoMode() bool {
 	return false
+}
+
+func (g *GeminiAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (g *GeminiAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
 }

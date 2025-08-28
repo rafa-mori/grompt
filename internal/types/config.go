@@ -74,7 +74,11 @@ type IAPIConfig interface {
 	GetVersion() string
 	ListModels() ([]string, error)
 	GetCommonModels() []string
+
 	Complete(prompt string, maxTokens int, model string) (string, error)
+
+	StartStream(prompt string, maxTokens int, model string) (string, error)
+	StopStream() error
 }
 
 type APIConfig struct {
@@ -83,6 +87,46 @@ type APIConfig struct {
 	version    string
 	httpClient *http.Client
 	demoMode   bool
+}
+
+func (c *APIConfig) IsAvailable() bool {
+	return c != nil && c.apiKey != ""
+}
+func (c *APIConfig) IsDemoMode() bool {
+	return c != nil && c.demoMode
+}
+func (c *APIConfig) GetVersion() string {
+	return c.version
+}
+func (c *APIConfig) ListModels() ([]string, error) {
+	if c == nil {
+		return nil, fmt.Errorf("Config is nil")
+	}
+	return nil, nil
+}
+func (c *APIConfig) GetCommonModels() []string {
+	if c == nil {
+		return nil
+	}
+	return nil
+}
+func (c *APIConfig) Complete(prompt string, maxTokens int, model string) (string, error) {
+	if c == nil {
+		return "", fmt.Errorf("Config is nil")
+	}
+	return "", nil
+}
+func (c *APIConfig) StartStream(prompt string, maxTokens int, model string) (string, error) {
+	if c == nil {
+		return "", fmt.Errorf("Config is nil")
+	}
+	return "", nil
+}
+func (c *APIConfig) StopStream() error {
+	if c == nil {
+		return fmt.Errorf("Config is nil")
+	}
+	return nil
 }
 
 type IConfig interface {
@@ -215,6 +259,28 @@ func (c *Config) GetAPIEndpoint(provider string) string {
 		return c.OllamaEndpoint
 	}
 	return ""
+}
+
+func (c *Config) StartStream(prompt string, maxTokens int, model string) (string, error) {
+	if c == nil {
+		return "", fmt.Errorf("Config is nil")
+	}
+	api := c.GetAPIConfig(model)
+	if api == nil {
+		return "", fmt.Errorf("API config is nil for model: %s", model)
+	}
+	return api.StartStream(prompt, maxTokens, "")
+}
+
+func (c *Config) StopStream() error {
+	if c == nil {
+		return fmt.Errorf("Config is nil")
+	}
+	api := c.GetAPIConfig("ollama")
+	if api == nil {
+		return fmt.Errorf("API config is nil for model: %s", "ollama")
+	}
+	return api.StopStream()
 }
 
 func (c *Config) checkOllamaConnection() bool {

@@ -2,41 +2,60 @@
 package providers
 
 import (
+	"context"
+
 	"github.com/rafa-mori/grompt/internal/types"
 	"github.com/rafa-mori/logz"
 )
 
+type ProviderOpts[T any] = types.ProviderOpts[T]
+
+type ProviderCtl[T any, C chan T] = types.ProviderCtl[T, C]
+
 // Provider represents an AI provider interface
-type Provider interface {
-	// Name returns the provider name (e.g., "openai", "claude", "ollama")
+type Provider[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] interface {
 	Name() string
-
-	// Version returns the provider version
 	Version() string
-
-	// Execute sends a prompt to the provider and returns the response
-	Execute(prompt string) (string, error)
+	GetAPI() *F
 
 	// IsAvailable checks if the provider is configured and ready
-	IsAvailable() bool
-
+	IsAvailable(ctx context.Context) bool
 	// GetCapabilities returns provider-specific capabilities
-	GetCapabilities() *types.Capabilities
+	GetCapabilities(ctx context.Context) *types.Capabilities
+
+	// Execute a prompt and return the response
+	Execute(ctx context.Context, prompt string, opts ...any) (string, error)
+	// Stream opens a streaming response for a prompt
+	Stream(ctx context.Context, prompt string, opts ...any) (string, error)
+
+	// Initialize the provider
+	Initialize(ctx context.Context) error
+	// Initialize the provider with options
+	InitializeWithOptions(opts *ProviderOpts[F]) error
+	// Get the provider control structure
+	Control(ctx context.Context) *ProviderCtl[F, chan F]
+	// Stop the provider
+	Stop(ctx context.Context) error
 }
 
 type Capabilities = types.Capabilities
 
-func NewProvider(name, apiKey, version string, cfg types.IConfig) Provider {
-	return &types.ProviderImpl{
-		VName:    name,
-		VVersion: version,
-		VAPI:     cfg.GetAPIConfig(name),
-		VConfig:  cfg,
+func NewProvider[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](name, apiKey, version string, apiCfg F, mainCfg types.IConfig) Provider[F] {
+	// Check if mainCfg is of the correct type
+	if cfg, ok := mainCfg.(*types.Config); !ok {
+		return nil
+	} else {
+		return &types.ProviderImpl[F]{
+			VName:    name,
+			VVersion: version,
+			VAPI:     apiCfg,
+			VConfig:  cfg,
+		}
 	}
 }
 
 // Initialize creates and returns all available providers
-func Initialize(
+func Initialize[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](
 	bindAddr,
 	port,
 	openAIKey,
@@ -46,7 +65,7 @@ func Initialize(
 	geminiKey,
 	chatGPTKey string,
 	logger logz.Logger,
-) []Provider {
+) []Provider[F] {
 
 	if bindAddr == "" &&
 		port == "" &&
@@ -56,7 +75,7 @@ func Initialize(
 		claudeKey == "" &&
 		geminiKey == "" &&
 		chatGPTKey == "" {
-		return []Provider{}
+		return []Provider[F]{}
 	}
 
 	var cfg = types.NewConfig(
@@ -73,24 +92,31 @@ func Initialize(
 
 	cfg.Logger = logger
 
-	var providers []Provider
+	var providers []Provider[F]
 	if claudeKey != "" {
-		providers = append(providers, NewProvider("claude", claudeKey, "v1", cfg))
+		apiCfg := types.NewClaudeAPI(claudeKey)
+		prvdr := NewProvider("claude", claudeKey, "v1", apiCfg.(F), cfg)
+		providers = append(providers, prvdr)
 	}
 	if openAIKey != "" {
-		providers = append(providers, NewProvider("openai", openAIKey, "v1", cfg))
+		apiCfg := types.NewOpenAIAPI(openAIKey)
+		providers = append(providers, NewProvider("openai", openAIKey, "v1", apiCfg.(F), cfg))
 	}
 	if deepSeekKey != "" {
-		providers = append(providers, NewProvider("deepseek", deepSeekKey, "v1", cfg))
+		apiCfg := types.NewDeepSeekAPI(deepSeekKey)
+		providers = append(providers, NewProvider("deepseek", deepSeekKey, "v1", apiCfg.(F), cfg))
 	}
 	if ollamaEndpoint != "" {
-		providers = append(providers, NewProvider("ollama", ollamaEndpoint, "v1", cfg))
+		apiCfg := types.NewOllamaAPI(ollamaEndpoint)
+		providers = append(providers, NewProvider("ollama", ollamaEndpoint, "v1", apiCfg.(F), cfg))
 	}
 	if geminiKey != "" {
-		providers = append(providers, NewProvider("gemini", geminiKey, "v1", cfg))
+		apiCfg := types.NewGeminiAPI(geminiKey)
+		providers = append(providers, NewProvider("gemini", geminiKey, "v1", apiCfg.(F), cfg))
 	}
 	if chatGPTKey != "" {
-		providers = append(providers, NewProvider("chatgpt", chatGPTKey, "v1", cfg))
+		apiCfg := types.NewChatGPTAPI(chatGPTKey)
+		providers = append(providers, NewProvider("chatgpt", chatGPTKey, "v1", apiCfg.(F), cfg))
 	}
 
 	return providers

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -61,11 +62,20 @@ func setupProvider(cfg t.IConfig, provider, apiKey string) (t.IAPIConfig, string
 		provider = getDefaultProvider(cfg)
 	}
 
-	providerObj := t.NewProvider(
-		provider,
-		utils.GetEnvOr(fmt.Sprintf("%s_API_KEY", strings.ToUpper(provider)), ""),
-		cfg,
-	)
+	// providerObj := t.NewProvider(
+	// 	provider,
+	// 	utils.GetEnvOr(fmt.Sprintf("%s_API_KEY", strings.ToUpper(provider)), ""),
+	// 	cfg,
+	// )
+
+	apiCfg := cfg.GetAPIConfig(provider)
+
+	apiC, ok := apiCfg.(*t.APIConfig)
+	if !ok {
+		return nil, "", fmt.Errorf("invalid API config for provider: %s", provider)
+	}
+
+	providerObj := t.NewProvider(provider, *apiC, cfg)
 	if providerObj == nil {
 		return nil, "", fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -80,7 +90,7 @@ func setupProvider(cfg t.IConfig, provider, apiKey string) (t.IAPIConfig, string
 		return nil, "", fmt.Errorf("provider '%s' is not configured or available", provider)
 	}
 
-	if !providerObj.IsAvailable() {
+	if !providerObj.IsAvailable(context.Background()) {
 		return nil, "", fmt.Errorf("provider '%s' is not available. Please check your API key and configuration", provider)
 	}
 
@@ -355,9 +365,19 @@ Examples:
 				provider = getDefaultProvider(cfg)
 			}
 
+			apiConfig := cfg.GetAPIConfig(provider)
+			if apiConfig == nil {
+				gl.Log("fatal", fmt.Sprintf("Provider '%s' is not configured", provider))
+			}
+
+			apiC, ok := apiConfig.(*t.APIConfig)
+			if !ok {
+				return fmt.Errorf("invalid API config for provider: %s", provider)
+			}
+
 			providerObj := t.NewProvider(
 				provider,
-				utils.GetEnvOr(fmt.Sprintf("%s_API_KEY", strings.ToUpper(provider)), ""),
+				*apiC,
 				cfg,
 			)
 			if providerObj == nil {
@@ -369,12 +389,12 @@ Examples:
 			}
 
 			providerObj.VConfig.SetAPIKey(provider, apiKey)
-			apiConfig := providerObj.VConfig.GetAPIConfig(providerObj.Name())
+			apiConfig = providerObj.VConfig.GetAPIConfig(providerObj.Name())
 			if apiConfig == nil {
 				gl.Log("fatal", fmt.Sprintf("Provider '%s' is not configured or available", provider))
 			}
 
-			if !providerObj.IsAvailable() {
+			if !providerObj.IsAvailable(context.Background()) {
 				gl.Log("fatal", fmt.Sprintf("Provider '%s' is not available. Please check your API key and configuration.", provider))
 			}
 

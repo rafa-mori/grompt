@@ -81,7 +81,25 @@ func readYAMLFile(filePath string, cfg *types.Config) error {
 	return decoder.Decode(cfg)
 }
 
-func NewProvider(name, apiKey, version string) providersPkg.Provider {
+func NewProvider[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](name, apiKey, version string) providersPkg.Provider[F] {
 	cfg := types.NewConfig("", "", "", "", "", "", "", "", nil)
-	return providersPkg.NewProvider(name, apiKey, version, cfg)
+	// Initialize provider-specific configuration
+	var providerConfig F
+	switch name {
+	case "openai":
+		providerConfig = types.NewOpenAIAPI(apiKey).(F)
+	case "claude":
+		providerConfig = types.NewClaudeAPI(apiKey).(F)
+	case "gemini":
+		providerConfig = types.NewGeminiAPI(apiKey).(F)
+	case "deepseek":
+		providerConfig = types.NewDeepSeekAPI(apiKey).(F)
+	case "ollama":
+		providerConfig = types.NewOllamaAPI(apiKey).(F)
+	case "chatgpt":
+		providerConfig = types.NewChatGPTAPI(apiKey).(F)
+	default:
+		return nil
+	}
+	return providersPkg.NewProvider(name, apiKey, version, providerConfig, cfg)
 }

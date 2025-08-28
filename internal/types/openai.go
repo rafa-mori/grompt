@@ -59,7 +59,7 @@ type OpenAIErrorResponse struct {
 	} `json:"error"`
 }
 
-func NewOpenAIAPI(apiKey string) *OpenAIAPI {
+func NewOpenAIAPI(apiKey string) IAPIConfig {
 	return &OpenAIAPI{
 		APIConfig: &APIConfig{
 			apiKey:  apiKey,
@@ -246,3 +246,13 @@ func (o *OpenAIAPI) GetVersion() string { return o.version }
 
 // IsDemoMode indicates if the API is in demo mode
 func (o *OpenAIAPI) IsDemoMode() bool { return o.demoMode }
+
+func (o *OpenAIAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (o *OpenAIAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
+}

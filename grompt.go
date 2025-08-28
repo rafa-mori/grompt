@@ -39,12 +39,12 @@ type Grompt interface {
 }
 
 // PromptEngine exposes the core prompt engineering functionality
-type PromptEngine interface {
+type PromptEngine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] interface {
 	// ProcessPrompt processes a prompt with variables and returns the result
 	ProcessPrompt(template string, vars map[string]interface{}) (*Result, error)
 
 	// GetProviders returns available AI providers
-	GetProviders() []Provider
+	GetProviders() []Provider[F]
 
 	// GetHistory returns the prompt history
 	GetHistory() []Result
@@ -62,8 +62,8 @@ func NewGrompt() Grompt {
 }
 
 // NewPromptEngine creates a new prompt engineering engine for library use
-func NewPromptEngine(config Config) PromptEngine {
-	return engine.NewEngine(config)
+func NewPromptEngine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](config Config) PromptEngine[F] {
+	return engine.NewEngine[F](config)
 }
 
 // DefaultConfig returns a default configuration for the prompt engine
@@ -89,7 +89,7 @@ type Result = engine.Result
 type Config = types.IConfig
 
 // Provider exposes the providers.Provider interface
-type Provider = providers.Provider
+type Provider[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] = providers.Provider[F]
 
 type APIConfig = types.IAPIConfig
 

@@ -1,6 +1,33 @@
 package types
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
+
+type ProviderOpts[T any] struct {
+	*Mutexes
+
+	Settings map[string]any
+	History  []any
+	Data     *T
+}
+
+func NewProviderOpts[T any]() *ProviderOpts[T] {
+	return &ProviderOpts[T]{
+		Mutexes:  NewMutexesType(),
+		Settings: make(map[string]any),
+		History:  make([]any, 0),
+		Data:     new(T),
+	}
+}
+
+type ProviderCtl[T any, C chan T] struct {
+	*Mutexes
+	*ProviderOpts[T]
+
+	Ch C
+}
 
 // Capabilities describes what a provider can do
 type Capabilities struct {
@@ -19,65 +46,66 @@ type Pricing struct {
 }
 
 // ProviderImpl wraps the types.IAPIConfig to implement providers.Provider
-type ProviderImpl struct {
+type ProviderImpl[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI] struct {
 	VName    string
 	VVersion string
-	VAPI     IAPIConfig
-	VConfig  IConfig
+	VAPI     F
+	VConfig  *Config
 }
 
 // Name returns the provider name
-func (cp *ProviderImpl) Name() string {
+func (cp *ProviderImpl[F]) Name() string {
 	return cp.VName
 }
 
 // Version returns the provider version
-func (cp *ProviderImpl) Version() string {
+func (cp *ProviderImpl[F]) Version() string {
 	return cp.VVersion
 }
 
 // Execute sends a prompt to the provider and returns the response
-func (cp *ProviderImpl) Execute(prompt string) (string, error) {
-	if cp == nil || cp.VAPI == nil {
+func (cp *ProviderImpl[F]) Execute(ctx context.Context, prompt string, opts ...any) (string, error) {
+	if cp == nil {
 		return "", fmt.Errorf("provider is not available")
 	}
-	return cp.VAPI.Complete(prompt, 2048, "") // Default max tokens
+	return any(cp.VAPI).(IAPIConfig).Complete(prompt, 2048, "")
 }
 
 // IsAvailable checks if the provider is configured and ready
-func (cp *ProviderImpl) IsAvailable() bool {
-	if cp == nil || cp.VAPI == nil {
+func (cp *ProviderImpl[F]) IsAvailable(ctx context.Context) bool {
+	if cp == nil {
 		return false
 	}
-	return cp.VAPI.IsAvailable()
+	return any(cp.VAPI).(IAPIConfig).IsAvailable()
 }
 
 // GetCapabilities returns provider-specific capabilities
-func (cp *ProviderImpl) GetCapabilities() *Capabilities {
+func (cp *ProviderImpl[F]) GetCapabilities(ctx context.Context) *Capabilities {
 	if cp == nil {
 		return nil
 	}
-	if cp.VAPI == nil {
-		if cp.VConfig != nil {
-			switch cp.VName {
-			case "openai":
-				cp.VAPI = cp.VConfig.GetAPIConfig("openai")
-			case "claude":
-				cp.VAPI = cp.VConfig.GetAPIConfig("claude")
-			case "gemini":
-				cp.VAPI = cp.VConfig.GetAPIConfig("gemini")
-			case "deepseek":
-				cp.VAPI = cp.VConfig.GetAPIConfig("deepseek")
-			case "ollama":
-				cp.VAPI = cp.VConfig.GetAPIConfig("ollama")
-			default:
-				return nil // No API config available for this provider
-			}
-		} else {
-			return nil // No API config available
+	var api IAPIConfig
+	if cp.VConfig != nil {
+		cfg := *cp.VConfig // Dereference pointer to get back real pointer access
+		switch cp.VName {
+		case "openai":
+			api = cfg.GetAPIConfig("openai")
+		case "claude":
+			api = cfg.GetAPIConfig("claude")
+		case "gemini":
+			api = cfg.GetAPIConfig("gemini")
+		case "deepseek":
+			api = cfg.GetAPIConfig("deepseek")
+		case "ollama":
+			api = cfg.GetAPIConfig("ollama")
+		default:
+			return nil // No API config available for this provider
 		}
 	}
-	models, err := cp.VAPI.ListModels()
+	if api == nil {
+		return nil // No API config available for this provider
+	}
+	models, err := api.ListModels()
 	if err != nil {
 		return nil
 	}
@@ -88,6 +116,42 @@ func (cp *ProviderImpl) GetCapabilities() *Capabilities {
 		Models:            models,
 		Pricing:           getPricingForProvider(cp.VName),
 	}
+}
+
+func (cp *ProviderImpl[F]) GetAPI() *F {
+	if cp == nil {
+		return nil
+	}
+	return &cp.VAPI
+}
+
+func (cp *ProviderImpl[F]) Stream(ctx context.Context, prompt string, opts ...any) (string, error) {
+	if cp == nil {
+		return "", fmt.Errorf("provider is not available")
+	}
+	api := cp.VAPI
+	// TODO: Fix this shit
+	return any(api).(IAPIConfig).StartStream(prompt, 2048, "")
+}
+
+func (cp *ProviderImpl[F]) Initialize(ctx context.Context) error {
+	return nil
+}
+
+func (cp *ProviderImpl[F]) InitializeWithOptions(opts *ProviderOpts[F]) error {
+	return nil
+}
+
+func (cp *ProviderImpl[F]) Control(ctx context.Context) *ProviderCtl[F, chan F] {
+	return &ProviderCtl[F, chan F]{
+		Mutexes:      NewMutexesType(),
+		ProviderOpts: NewProviderOpts[F](),
+		Ch:           make(chan F),
+	}
+}
+
+func (cp *ProviderImpl[F]) Stop(ctx context.Context) error {
+	return nil
 }
 
 // getMaxTokensForProvider returns max tokens for each provider
@@ -147,8 +211,8 @@ func getPricingForProvider(providerName string) *Pricing {
 }
 
 // NewProviders creates all available providers based on configuration
-func NewProviders(config IConfig) []*ProviderImpl {
-	var activeProviders []*ProviderImpl
+func NewProviders[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, config IConfig) []*ProviderImpl[F] {
+	var activeProviders []*ProviderImpl[F]
 
 	// List of all supported providers
 	providerConfigs := []struct {
@@ -162,17 +226,25 @@ func NewProviders(config IConfig) []*ProviderImpl {
 		{"ollama", "ollama"},
 		{"chatgpt", "chatgpt"},
 	}
-
-	for _, pc := range providerConfigs {
-		// Check if provider is configured
-		if config.GetAPIKey(pc.key) != "" {
-			api := config.GetAPIConfig(pc.name)
-			if api != nil && api.IsAvailable() {
-				provider := &ProviderImpl{
-					VName:   pc.name,
-					VAPI:    api,
-					VConfig: config,
-				}
+	for _, cfg := range providerConfigs {
+		apiKey := config.GetAPIKey(cfg.key)
+		if apiKey != "" || cfg.name == "ollama" { // Ollama can work without API key (local)
+			var provider *ProviderImpl[F]
+			switch cfg.name {
+			case "openai":
+				provider = NewOpenAIProvider(apiCfg, config)
+			case "claude":
+				provider = NewClaudeProvider(apiCfg, config)
+			case "gemini":
+				provider = NewGeminiProvider(apiCfg, config)
+			case "deepseek":
+				provider = NewDeepSeekProvider(apiCfg, config)
+			case "ollama":
+				provider = NewOllamaProvider(apiCfg, config)
+			case "chatgpt":
+				provider = NewChatGPTProvider(apiCfg, config)
+			}
+			if provider != nil {
 				activeProviders = append(activeProviders, provider)
 			}
 		}
@@ -184,62 +256,94 @@ func NewProviders(config IConfig) []*ProviderImpl {
 // Individual provider constructors for engine initialization
 
 // NewOpenAIProvider creates a new OpenAI provider
-func NewOpenAIProvider(apiKey string) *ProviderImpl {
-	api := NewOpenAIAPI(apiKey)
-	return &ProviderImpl{
-		VName: "openai",
-		VAPI:  api,
+func NewOpenAIProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return &ProviderImpl[F]{
+			VName:   "openai",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "openai",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
 // NewClaudeProvider creates a new Claude provider
-func NewClaudeProvider(apiKey string) *ProviderImpl {
-	api := NewClaudeAPI(apiKey)
-	return &ProviderImpl{
-		VName: "claude",
-		VAPI:  api,
+func NewClaudeProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "claude",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
 // NewGeminiProvider creates a new Gemini provider
-func NewGeminiProvider(apiKey string) *ProviderImpl {
-	api := NewGeminiAPI(apiKey)
-	return &ProviderImpl{
-		VName: "gemini",
-		VAPI:  api,
+func NewGeminiProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "gemini",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
 // NewDeepSeekProvider creates a new DeepSeek provider
-func NewDeepSeekProvider(apiKey string) *ProviderImpl {
-	api := NewDeepSeekAPI(apiKey)
-	return &ProviderImpl{
-		VName: "deepseek",
-		VAPI:  api,
+func NewDeepSeekProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "deepseek",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
 // NewOllamaProvider creates a new Ollama provider
-func NewOllamaProvider() *ProviderImpl {
-	api := NewOllamaAPI("http://localhost:11434")
-	return &ProviderImpl{
-		VName: "ollama",
-		VAPI:  api,
+func NewOllamaProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "ollama",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
-func NewChatGPTProvider(apiKey string) *ProviderImpl {
-	api := NewChatGPTAPI(apiKey)
-	return &ProviderImpl{
-		VName: "chatgpt",
-		VAPI:  api,
+func NewChatGPTProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   "chatgpt",
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }
 
-func NewProvider(name, apiKey string, cfg IConfig) *ProviderImpl {
-	return &ProviderImpl{
-		VName:   name,
-		VAPI:    cfg.GetAPIConfig(name),
-		VConfig: cfg,
+func NewProvider[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI](name string, apiCfg F, mainCfg IConfig) *ProviderImpl[F] {
+	if cfg, ok := mainCfg.(*Config); !ok {
+		return nil
+	} else {
+		return &ProviderImpl[F]{
+			VName:   name,
+			VAPI:    apiCfg,
+			VConfig: cfg,
+		}
 	}
 }

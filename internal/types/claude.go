@@ -200,3 +200,13 @@ func (c *ClaudeAPI) GetVersion() string { return c.version }
 
 // IsDemoMode indicates if the API is in demo mode
 func (c *ClaudeAPI) IsDemoMode() bool { return c.demoMode }
+
+func (c *ClaudeAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (c *ClaudeAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
+}

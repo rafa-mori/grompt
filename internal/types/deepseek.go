@@ -61,7 +61,7 @@ type DeepSeekErrorResponse struct {
 	} `json:"error"`
 }
 
-func NewDeepSeekAPI(apiKey string) *DeepSeekAPI {
+func NewDeepSeekAPI(apiKey string) IAPIConfig {
 	return &DeepSeekAPI{
 		APIConfig: &APIConfig{
 			apiKey:  apiKey,
@@ -272,4 +272,14 @@ func (d *DeepSeekAPI) GetCommonModels() []string {
 		"deepseek-math",
 		"deepseek-reasoner",
 	}
+}
+
+func (d *DeepSeekAPI) StartStream(string, int, string) (string, error) {
+	// Implementar lógica de streaming aqui
+	return "", nil
+}
+
+func (d *DeepSeekAPI) StopStream() error {
+	// Implementar lógica para parar o streaming aqui
+	return nil
 }

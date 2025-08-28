@@ -2,21 +2,21 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/rafa-mori/grompt/factory/providers"
 	"github.com/rafa-mori/grompt/factory/templates"
-	concreteProviders "github.com/rafa-mori/grompt/internal/providers"
 	"github.com/rafa-mori/grompt/internal/types"
 )
 
-type IEngine interface {
+type IEngine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] interface {
 	// ProcessPrompt processes a prompt with variables and returns the result
 	ProcessPrompt(template string, vars map[string]interface{}) (*Result, error)
 
 	// GetProviders returns available providers
-	GetProviders() []providers.Provider
+	GetProviders() []providers.Provider[F]
 
 	// GetHistory returns the prompt history
 	GetHistory() []Result
@@ -29,17 +29,17 @@ type IEngine interface {
 }
 
 // Engine represents the core prompt engineering engine
-type Engine struct {
-	providers []providers.Provider
+type Engine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI] struct {
+	providers []providers.Provider[F]
 	templates templates.Manager
 	history   IHistoryManager
 	config    types.IConfig
 }
 
 // NewEngine creates a new IEngine instance with initialized providers
-func NewEngine(config types.IConfig) IEngine {
-	engine := &Engine{
-		providers: make([]providers.Provider, 0),
+func NewEngine[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | types.GeminiAPI | types.DeepSeekAPI | types.OllamaAPI | types.ChatGPTAPI](config types.IConfig) IEngine[F] {
+	engine := &Engine[F]{
+		providers: make([]providers.Provider[F], 0),
 		templates: templates.NewManager("./templates"), // Default templates path
 		history:   NewHistoryManager(100),              // Default to 100 entries
 		config:    config,
@@ -52,38 +52,15 @@ func NewEngine(config types.IConfig) IEngine {
 }
 
 // initializeProviders initializes all available concrete providers
-func (e *Engine) initializeProviders() {
-	// Initialize OpenAI provider
-	if apiKey := e.config.GetAPIKey("openai"); apiKey != "" {
-		provider := concreteProviders.NewOpenAIProvider(apiKey)
-		e.providers = append(e.providers, provider)
+func (e *Engine[F]) initializeProviders() {
+	if e == nil {
+		return
 	}
 
-	// Initialize Claude provider
-	if apiKey := e.config.GetAPIKey("claude"); apiKey != "" {
-		provider := concreteProviders.NewClaudeProvider(apiKey)
-		e.providers = append(e.providers, provider)
-	}
-
-	// Initialize DeepSeek provider
-	if apiKey := e.config.GetAPIKey("deepseek"); apiKey != "" {
-		provider := concreteProviders.NewDeepSeekProvider(apiKey)
-		e.providers = append(e.providers, provider)
-	}
-
-	// Initialize Ollama provider (local - no API key needed)
-	provider := concreteProviders.NewOllamaProvider()
-	e.providers = append(e.providers, provider)
-
-	// Initialize Gemini provider
-	if apiKey := e.config.GetAPIKey("gemini"); apiKey != "" {
-		provider := concreteProviders.NewGeminiProvider(apiKey)
-		e.providers = append(e.providers, provider)
-	}
 }
 
 // ProcessPrompt processes a prompt with variables and returns the result
-func (e *Engine) ProcessPrompt(template string, vars map[string]interface{}) (*Result, error) {
+func (e *Engine[F]) ProcessPrompt(template string, vars map[string]interface{}) (*Result, error) {
 	if e == nil {
 		return nil, fmt.Errorf("engine is nil")
 	}
@@ -102,7 +79,7 @@ func (e *Engine) ProcessPrompt(template string, vars map[string]interface{}) (*R
 	provider := e.providers[0]
 
 	// Execute prompt with provider
-	response, err := provider.Execute(processedPrompt)
+	response, err := provider.Execute(context.Background(), processedPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("provider execution failed: %w", err)
 	}
@@ -124,7 +101,7 @@ func (e *Engine) ProcessPrompt(template string, vars map[string]interface{}) (*R
 }
 
 // GetProviders returns available providers
-func (e *Engine) GetProviders() []providers.Provider {
+func (e *Engine[F]) GetProviders() []providers.Provider[F] {
 	if e == nil {
 		return nil
 	}
@@ -132,7 +109,7 @@ func (e *Engine) GetProviders() []providers.Provider {
 }
 
 // GetHistory returns the prompt history
-func (e *Engine) GetHistory() []Result {
+func (e *Engine[F]) GetHistory() []Result {
 	if e == nil || e.history == nil {
 		return nil
 	}
@@ -140,7 +117,7 @@ func (e *Engine) GetHistory() []Result {
 }
 
 // SaveToHistory saves a prompt/response pair to history
-func (e *Engine) SaveToHistory(prompt, response string) error {
+func (e *Engine[F]) SaveToHistory(prompt, response string) error {
 	if e == nil || e.history == nil {
 		return fmt.Errorf("engine or history is nil")
 	}
@@ -158,7 +135,7 @@ func (e *Engine) SaveToHistory(prompt, response string) error {
 }
 
 // BatchProcess processes multiple prompts concurrently
-func (e *Engine) BatchProcess(prompts []string, vars map[string]interface{}) ([]Result, error) {
+func (e *Engine[F]) BatchProcess(prompts []string, vars map[string]interface{}) ([]Result, error) {
 	if e == nil {
 		return nil, fmt.Errorf("engine is nil")
 	}
