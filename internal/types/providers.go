@@ -29,6 +29,14 @@ type ProviderCtl[T any, C chan T] struct {
 	Ch C
 }
 
+// ProviderImpl wraps the types.IAPIConfig to implement providers.Provider
+type ProviderImpl[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI] struct {
+	VName    string
+	VVersion string
+	VAPI     F
+	VConfig  *Config
+}
+
 // Capabilities describes what a provider can do
 type Capabilities struct {
 	MaxTokens         int      `json:"max_tokens"`
@@ -43,14 +51,6 @@ type Pricing struct {
 	InputCostPer1K  float64 `json:"input_cost_per_1k"`
 	OutputCostPer1K float64 `json:"output_cost_per_1k"`
 	Currency        string  `json:"currency"`
-}
-
-// ProviderImpl wraps the types.IAPIConfig to implement providers.Provider
-type ProviderImpl[F APIConfig | OpenAIAPI | ClaudeAPI | GeminiAPI | DeepSeekAPI | OllamaAPI | ChatGPTAPI] struct {
-	VName    string
-	VVersion string
-	VAPI     F
-	VConfig  *Config
 }
 
 // Name returns the provider name

@@ -49,7 +49,6 @@ func NewOpenAIProvider[F types.APIConfig | types.OpenAIAPI | types.ClaudeAPI | t
 			VConfig: cfg,
 		}
 	}
-
 }
 
 // NewClaudeProvider creates a new Claude provider
